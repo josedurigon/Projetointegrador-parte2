@@ -1,6 +1,7 @@
 package com.example.segundoapp
 
 import android.os.Bundle
+import android.os.Handler
 import com.google.android.material.snackbar.Snackbar
 import androidx.appcompat.app.AppCompatActivity
 import androidx.navigation.findNavController
@@ -24,12 +25,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var database: DatabaseReference
 
-    private val db = FirebaseFirestore.getInstance()
-    val collection = db.collection("IntegrasData")
 
-
-
-
+    val db = FirebaseFirestore.getInstance()
+    var handler = Handler()
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,4 +39,28 @@ class MainActivity : AppCompatActivity() {
         setSupportActionBar(binding.toolbar)
 
         }
+
+    fun consulta(){
+        val collectionRef = db.collection("IntegrasData")
+        collectionRef.get()
+            .addOnSuccessListener { querySnapshot ->
+                for (documentSnapshot in querySnapshot) {
+                    // Acesso aos dados de cada documento retornado
+                    val data = documentSnapshot.data
+                    // Lógica para manipular os dados
+                }
+            }
+            .addOnFailureListener { exception ->
+                // Lógica para lidar com erros
+            }
+
+    }
+
+
+
+
+
+
+
 }
+
