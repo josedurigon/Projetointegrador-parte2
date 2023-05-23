@@ -80,19 +80,48 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     fun consulta(){
         val collectionRef = db.collection("IntegrasData")
+        val dadosList = mutableListOf<IntegrasData>()
+        val latLngList = mutableListOf<LatLng>()
+
         collectionRef.get()
             .addOnSuccessListener { querySnapshot ->
                 for (documentSnapshot in querySnapshot) {
+                    val nivelRuido = documentSnapshot.getDouble("nivelRuido")?.toFloat()
+                    val dataFirestore = documentSnapshot.getDate("data")
+                    val latitude = documentSnapshot.getDouble("latitude")
+                    val longitude = documentSnapshot.getDouble("longitude")
                     // Acesso aos dados de cada documento retornado
                     val data = documentSnapshot.data
                     // Lógica para manipular os dados
+                    if (nivelRuido != null && dataFirestore != null && latitude != null && longitude != null) {
+                        val dados = IntegrasData(nivelRuido, dataFirestore, latitude, longitude)
+                        val latLng = LatLng(latitude, longitude)
+                        latLngList.add(latLng)
+                        dadosList.add(dados)
+                    }
                 }
+                val heatMap = HeatmapTileProvider.Builder()
+                    .data(latLngList)
+                    .build()
+
+                googleMap.addTileOverlay(TileOverlayOptions().tileProvider(heatMap))
+
             }
 
             .addOnFailureListener { exception ->
                 "Erro ao tentar consultar o banco de dados na coleção ${collectionRef}"
                 // Lógica para lidar com erros
             }
+
+    }
+
+    fun heatMap(){
+        val heatmapData = ArrayList<LatLng>() // Lista de coordenadas geográficas (LatLng)
+        // Adicione os dados à lista heatmapData
+
+        val heatmapTileProvider = HeatmapTileProvider.Builder()
+            .data(heatmapData)
+            .build()
 
     }
 
