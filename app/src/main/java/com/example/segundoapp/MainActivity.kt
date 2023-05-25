@@ -57,14 +57,28 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     var nivelRuido: Float = 0.0f
     val NIVEL_RUIDO_ALERTA: Float = 65.00f
     var userLocation: Location? = null
-
+    private val margemErro = 50
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         clearCache(applicationContext)
         setContentView(R.layout.activity_main)
 
         LocationPermissionHelper.checkLocationPermission(this) {
-
+            // Verificar se a permissão ACCESS_FINE_LOCATION foi concedida
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
+                getCurrentLocation()
+            } else {
+                // A permissão não foi concedida, você pode solicitar a permissão ao usuário
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                    REQUEST_CODE
+                )
+            }
         }
         val locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
@@ -84,8 +98,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
         val runnable = Runnable {
             // Código a ser executado na thread principal
-            consulta()
             getCurrentLocation()
+            consulta()
         }
         // Executa o código na thread principal após um atraso de 10 segundos para nao lotar o firebase de requisições e estourar o limite
         handler.postDelayed(runnable, 10000)
@@ -201,12 +215,19 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     }
 
 
+    private fun calcularDistancia(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Float {
+        val results = FloatArray(1)
+        Location.distanceBetween(lat1, lon1, lat2, lon2, results)
+        return results[0]
+    }
+
     private fun verificarNivelRuidoEPosicao(latitude: Double, longitude: Double) {
         // Verifique os níveis de ruído e posição do usuário e emita alertas conforme necessário
-
-        if (userLocation != null && userLocation!!.latitude == latitude && userLocation!!.longitude == longitude && nivelRuido >= NIVEL_RUIDO_ALERTA) {
+        val distancia = calcularDistancia(userLocation!!.latitude, userLocation!!.longitude, latitude, longitude)
+        if(distancia <= margemErro && nivelRuido>= NIVEL_RUIDO_ALERTA){
             emitirAlertaRuido()
         }
+
     }
 
     fun emitirAlertaRuido(){
