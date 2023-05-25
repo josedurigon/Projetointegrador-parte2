@@ -5,6 +5,9 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.Manifest
+import android.content.ContentValues.TAG
+import android.content.Context
+import android.util.Log
 import com.google.android.material.snackbar.Snackbar
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -46,17 +49,27 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        clearCache(applicationContext)
         setContentView(R.layout.activity_main)
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
             // Permissão já foi concedida
             // Coloque aqui o código para usar a localização
         } else {
             // Permissão ainda não foi concedida, solicite-a ao usuário
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), REQUEST_CODE)
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                REQUEST_CODE
+            )
         }
 
-        val mapFragment = supportFragmentManager.findFragmentById(R.id.mapViewContainer) as? SupportMapFragment
+        val mapFragment =
+            supportFragmentManager.findFragmentById(R.id.mapViewContainer) as? SupportMapFragment
         mapFragment?.getMapAsync(this)
         if (mapFragment == null) {
             val newMapFragment = SupportMapFragment.newInstance()
@@ -67,18 +80,25 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         } else {
             mapFragment.getMapAsync(this)
         }
+
+
+        val runnable = Runnable {
+            // Código a ser executado na thread principal
+            consulta()
+        }
+        // Executa o código na thread principal após um atraso de 10 segundos para nao lotar o firebase de requisições e estourar o limite
+        handler.postDelayed(runnable, 10000)
     }
+
 
     override fun onMapReady(googleMap: GoogleMap) {
-        val sydney = LatLng(-33.852, 151.211)
-        googleMap.addMarker(
-            MarkerOptions()
-                .position(sydney)
-                .title("Marker in Sydney")
-        )
+        this.googleMap = googleMap
+        val zoomlevel = 15.0f
+        val PUCC = LatLng(-22.834788, -47.049731)
+      googleMap.moveCamera(CameraUpdateFactory.newLatLngZoom(PUCC,zoomlevel))
     }
 
-    fun consulta(){
+    fun consulta() {
         val collectionRef = db.collection("IntegrasData")
         val dadosList = mutableListOf<IntegrasData>()
         val latLngList = mutableListOf<LatLng>()
@@ -86,19 +106,26 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         collectionRef.get()
             .addOnSuccessListener { querySnapshot ->
                 for (documentSnapshot in querySnapshot) {
-                    val nivelRuido = documentSnapshot.getDouble("nivelRuido")?.toFloat()
+                    val nivelRuido = documentSnapshot.getDouble("SPL")?.toFloat()
                     val dataFirestore = documentSnapshot.getDate("data")
-                    val latitude = documentSnapshot.getDouble("latitude")
-                    val longitude = documentSnapshot.getDouble("longitude")
+                    val latitude = documentSnapshot.getDouble("Latitude")
+                    val longitude = documentSnapshot.getDouble("Longitude")
                     // Acesso aos dados de cada documento retornado
                     val data = documentSnapshot.data
                     // Lógica para manipular os dados
-                    if (nivelRuido != null && dataFirestore != null && latitude != null && longitude != null) {
-                        val dados = IntegrasData(nivelRuido, dataFirestore, latitude, longitude)
+                    if (nivelRuido != null && latitude != null && longitude != null) {
+                        val dados = IntegrasData(nivelRuido, latitude, longitude)
                         val latLng = LatLng(latitude, longitude)
                         latLngList.add(latLng)
                         dadosList.add(dados)
                     }
+                }
+                for (dados in dadosList) {
+                    Log.d(
+                        TAG, "Nivel de ruido: ${dados.nivelRuido}\n" +
+                                "Latitude: ${dados.latitude}\n" +
+                                "Longitude: ${dados.longitude}"
+                    )
                 }
                 val heatMap = HeatmapTileProvider.Builder()
                     .data(latLngList)
@@ -109,22 +136,23 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             }
 
             .addOnFailureListener { exception ->
-                "Erro ao tentar consultar o banco de dados na coleção ${collectionRef}"
+                "Erro ao tentar consultar o banco de dados na coleção ${collectionRef}: ${exception}"
                 // Lógica para lidar com erros
             }
 
     }
-
-    fun heatMap(){
-        val heatmapData = ArrayList<LatLng>() // Lista de coordenadas geográficas (LatLng)
-        // Adicione os dados à lista heatmapData
-
-        val heatmapTileProvider = HeatmapTileProvider.Builder()
-            .data(heatmapData)
-            .build()
-
+    fun clearCache(context: Context) {
+        context.cacheDir?.let { cacheDir ->
+            if (cacheDir.exists()) {
+                val files = cacheDir.listFiles()
+                if (files != null) {
+                    for (file in files) {
+                        file.delete()
+                    }
+                }
+            }
+        }
     }
-
-
 }
+
 
