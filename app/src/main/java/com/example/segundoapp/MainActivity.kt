@@ -247,9 +247,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private fun verificarNivelRuidoEPosicao(latitude: Double, longitude: Double) {
         // Verifique os níveis de ruído e posição do usuário e emita alertas conforme necessário
-
-        if (latitudeUser != null && longitudeUser != null) {
-
+        try{
             for (value in latLngList) {
                 /*TODO fazer a iteração da lista do dadosList*/
                 //if (value.latitude == userLocation!!.latitude && value.longitude == userLocation!!.longitude)
@@ -273,7 +271,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 }
 
             }
-        } else {
+        }
+        catch (e: NullPointerException){
             Log.e(
                 TAG, "Erro: latitudeUser e/ou longitudeUser está sendo passada como nulo!!" +
                         "\nlatitudeUser: ${latitudeUser}" +
@@ -281,7 +280,6 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                         "Scheisse!"
             )
         }
-
     }
 
 
