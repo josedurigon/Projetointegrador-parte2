@@ -37,6 +37,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Build
+import kotlinx.coroutines.*
 
 
 
@@ -58,51 +59,61 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     val NIVEL_RUIDO_ALERTA: Float = 65.00f
     var userLocation: Location? = null
     private val margemErro = 50
+    val dadosList = mutableListOf<IntegrasData>()
+    val latLngList = mutableListOf<LatLng>()
+    var latitudeUser: Double? = null
+    var longitudeUser: Double? = null
+
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        clearCache(applicationContext)
-        setContentView(R.layout.activity_main)
+        CoroutineScope(Dispatchers.Main).launch{
 
-        LocationPermissionHelper.checkLocationPermission(this) {
-            // Verificar se a permissão ACCESS_FINE_LOCATION foi concedida
-            if (ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.ACCESS_FINE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED
-            ) {
-                getCurrentLocation()
-            } else {
-                // A permissão não foi concedida, você pode solicitar a permissão ao usuário
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                    REQUEST_CODE
-                )
+
+        }
+            //limpar cache
+            CacheUtils.clear(applicationContext)
+            setContentView(R.layout.activity_main)
+
+            LocationPermissionHelper.checkLocationPermission(this) {
+                // Verificar se a permissão ACCESS_FINE_LOCATION foi concedida
+                if (ContextCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.ACCESS_FINE_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+
+                    getCurrentLocation()
+                } else {
+                    // A permissão não foi concedida, você pode solicitar a permissão ao usuário
+                    ActivityCompat.requestPermissions(
+                        this,
+                        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
+                        REQUEST_CODE
+                    )
+                }
             }
-        }
-        val locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
+            val mapFragment =
+                supportFragmentManager.findFragmentById(R.id.mapViewContainer) as? SupportMapFragment
+            mapFragment?.getMapAsync(this)
+            if (mapFragment == null) {
+                val newMapFragment = SupportMapFragment.newInstance()
+                supportFragmentManager.beginTransaction()
+                    .add(R.id.mapViewContainer, newMapFragment)
+                    .commit()
+                newMapFragment.getMapAsync(this)
+            } else {
+                mapFragment.getMapAsync(this)
+            }
 
-        val mapFragment =
-            supportFragmentManager.findFragmentById(R.id.mapViewContainer) as? SupportMapFragment
-        mapFragment?.getMapAsync(this)
-        if (mapFragment == null) {
-            val newMapFragment = SupportMapFragment.newInstance()
-            supportFragmentManager.beginTransaction()
-                .add(R.id.mapViewContainer, newMapFragment)
-                .commit()
-            newMapFragment.getMapAsync(this)
-        } else {
-            mapFragment.getMapAsync(this)
-        }
-
-        val runnable = Runnable {
-            // Código a ser executado na thread principal
-            getCurrentLocation()
-            consulta()
-        }
-        // Executa o código na thread principal após um atraso de 10 segundos para nao lotar o firebase de requisições e estourar o limite
-        handler.postDelayed(runnable, 10000)
+            val runnable = Runnable {
+                // Código a ser executado na thread principal
+                getCurrentLocation()
+                consulta()
+            }
+            // Executa o código na thread principal após um atraso de 10 segundos para nao lotar o firebase de requisições e estourar o limite
+            handler.postDelayed(runnable, 10000)
     }
 
 
@@ -121,19 +132,21 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         collectionRef.get()
             .addOnSuccessListener { querySnapshot ->
                 for (documentSnapshot in querySnapshot) {
+
                     val nivelRuido = documentSnapshot.getDouble("SPL")?.toFloat()
-                    val dataFirestore = documentSnapshot.getDate("data")
                     val latitude = documentSnapshot.getDouble("Latitude")
                     val longitude = documentSnapshot.getDouble("Longitude")
-                    // Acesso aos dados de cada documento retornado
-                    val data = documentSnapshot.data
+
                     // Lógica para manipular os dados
                     if (nivelRuido != null && latitude != null && longitude != null) {
+
                         val dados = IntegrasData(nivelRuido, latitude, longitude)
                         val latLng = LatLng(latitude, longitude)
+
                         latLngList.add(latLng)
                         dadosList.add(dados)
                         verificarNivelRuidoEPosicao(latitude, longitude)
+
                     }
 
                 }
@@ -141,9 +154,13 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                     Log.d(
                         TAG, "Nivel de ruido: ${dados.nivelRuido}\n" +
                                 "Latitude: ${dados.latitude}\n" +
-                                "Longitude: ${dados.longitude}"
+                                "Longitude: ${dados.longitude}\n" +
+                                "dadosList: ${dadosList}\n" +
+                                "latLngList: ${latLngList}"
+
                     )
                 }
+
                 val heatMap = HeatmapTileProvider.Builder()
                     .data(latLngList)
                     .build()
@@ -159,6 +176,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     }
 
+    /*
     fun clearCache(context: Context) {
         context.cacheDir?.let { cacheDir ->
             if (cacheDir.exists()) {
@@ -171,7 +189,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             }
         }
     }
-
+    */
 
     private fun getCurrentLocation() {
         val locationManager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
@@ -191,11 +209,17 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                 object : LocationListener {
                     override fun onLocationChanged(location: Location) {
                         // Aqui está a posição atual do usuário
-                        val latitude = location.latitude
-                        val longitude = location.longitude
                         userLocation = location
+                        latitudeUser = location.latitude
+                        longitudeUser = location.longitude
+                        Log.d(TAG, "\n*****userLocation: ${location} ******\n" +
+                                "agora, se for assim: \n" +
+                                "Latitude = ${latitudeUser}\n" +
+                                "Longitude = ${longitudeUser}")
+                        //Usar location.latitude e location.longitude!
                         // Faça o que for necessário com a posição atual
                         // ...
+
 
                         // Lembre-se de parar as atualizações de localização quando não precisar mais delas
                         locationManager.removeUpdates(this)
@@ -223,12 +247,43 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private fun verificarNivelRuidoEPosicao(latitude: Double, longitude: Double) {
         // Verifique os níveis de ruído e posição do usuário e emita alertas conforme necessário
-        val distancia = calcularDistancia(userLocation!!.latitude, userLocation!!.longitude, latitude, longitude)
-        if(distancia <= margemErro && nivelRuido>= NIVEL_RUIDO_ALERTA){
-            emitirAlertaRuido()
+
+        if (latitudeUser != null && longitudeUser != null) {
+
+            for (value in latLngList) {
+                /*TODO fazer a iteração da lista do dadosList*/
+                //if (value.latitude == userLocation!!.latitude && value.longitude == userLocation!!.longitude)
+
+                val distancia = calcularDistancia(
+                    userLocation!!.latitude,
+                    userLocation!!.longitude,
+                    latitude,
+                    longitude
+                )
+                Log.d(
+                    TAG,
+                    "Distancia: ${distancia}*\n"
+                )
+                if (distancia <= margemErro && nivelRuido >= NIVEL_RUIDO_ALERTA) {
+                    emitirAlertaRuido()
+                    Log.d(
+                        TAG,
+                        "Distancia: ${distancia}\n"
+                    )
+                }
+
+            }
+        } else {
+            Log.e(
+                TAG, "Erro: latitudeUser e/ou longitudeUser está sendo passada como nulo!!" +
+                        "\nlatitudeUser: ${latitudeUser}" +
+                        "\nlongitudeUser: ${longitudeUser}\n" +
+                        "Scheisse!"
+            )
         }
 
     }
+
 
     fun emitirAlertaRuido(){
         val notificationId = 1
@@ -254,7 +309,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             // Crie um canal de notificação para dispositivos Android 8.0 e posterior
             val channel = NotificationChannel(
                 "channel_id",
-                "Nome do Canal",
+                "channel_id",
                 NotificationManager.IMPORTANCE_HIGH
             )
             notificationManager.createNotificationChannel(channel)
@@ -262,6 +317,21 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         // Construa e exiba a notificação usando o NotificationManager
         notificationManager.notify(notificationId, builder.build())
 
+    }
+
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        if (requestCode == REQUEST_CODE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permissão ACCESS_FINE_LOCATION concedida
+                getCurrentLocation()
+            } else {
+                // Permissão ACCESS_FINE_LOCATION não concedida, você pode tratar isso de acordo com suas necessidades
+                // Por exemplo, exibir uma mensagem de erro ou solicitar a permissão novamente
+            }
+        }
     }
 
 }
